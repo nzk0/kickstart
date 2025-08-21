@@ -55,7 +55,7 @@ repo --name=rpmfusion-free-updates --install --mirrorlist=https://mirrors.rpmfus
 repo --name=rpmfusion-nonfree --install --mirrorlist=https://mirrors.rpmfusion.org/mirrorlist?repo=nonfree-fedora-$releasever&arch=$basearch
 repo --name=rpmfusion-nonfree-updates --install --mirrorlist=https://mirrors.rpmfusion.org/mirrorlist?repo=nonfree-fedora-updates-released-$releasever&arch=$basearch
 
-%packages
+%packages --excludedocs
 # Core System
 @core
 @base-x
@@ -307,16 +307,6 @@ alacritty
 vim
 nano
 micro
-
-# Exclude unnecessary server packages
--mariadb*
--mysql*
--postgresql*
--httpd
--nginx
--php*
--perl-DBD-MySQL
--perl-DBD-MariaDB
 
 %end
 
