@@ -16,7 +16,6 @@ graphical
 
 # Network information
 network --bootproto=dhcp --device=link --activate
-network --hostname=fedora-gaming
 
 # Use Fedora mirrors
 url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch
