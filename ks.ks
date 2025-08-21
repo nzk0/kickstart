@@ -35,7 +35,7 @@ clearpart --all --initlabel --drives=sda
 
 # Create partitions with Btrfs
 part /boot/efi --fstype="efi" --size=512 --ondisk=sda
-part /boot --fstype="ext4" --size=1024 --ondisk=sda
+part /boot --fstype="ext4" --size=2048 --ondisk=sda
 part btrfs.01 --fstype="btrfs" --size=1 --grow --ondisk=sda
 
 # Create Btrfs subvolumes for Snapper
