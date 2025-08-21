@@ -107,7 +107,7 @@ yakuake
 krfb
 krdc
 ksystemlog
-partitionmanager
+# partitionmanager - not in standard repos
 filelight
 kdf
 kcharselect
@@ -129,21 +129,19 @@ kernel-core
 
 # GRUB theming and snapshot support
 grub2-tools-extra
-grub2-themes
-grub-customizer
-grub-btrfs
-imagemagick  # For theme installation
+grub2-tools-efi
+# grub-customizer is in COPR, not main repos
+# grub-btrfs will be installed in %post
+# imagemagick removed - not needed
 
 # Btrfs and Snapper
 btrfs-progs
 snapper
-snapper-gui
 python3-dnf-plugin-snapper
 inotify-tools
 
 # Gaming Core Components
 gamemode
-gamemode-gtk
 gamescope
 mangohud
 goverlay
@@ -155,7 +153,6 @@ wine-dxvk-dxgi
 winetricks
 protontricks
 bottles
-heroic-games-launcher
 
 # Vulkan and Graphics
 vulkan-tools
@@ -169,17 +166,21 @@ mesa-va-drivers
 libva-utils
 vdpauinfo
 
-# 32-bit Libraries for Gaming
+# 32-bit Libraries for Gaming (REQUIRED for Steam and many games)
+# Core system libraries
 glibc.i686
 glibc-devel.i686
 libgcc.i686
 libstdc++.i686
+
+# Graphics and rendering
 mesa-libGL.i686
 mesa-libGLU.i686
 mesa-dri-drivers.i686
 mesa-vulkan-drivers.i686
 vulkan-loader.i686
-alsa-lib.i686
+
+# X11 libraries (many games need these)
 libXcomposite.i686
 libXcursor.i686
 libXi.i686
@@ -187,22 +188,31 @@ libXinerama.i686
 libXrandr.i686
 libXrender.i686
 libXxf86vm.i686
+
+# Audio libraries
+alsa-lib.i686
 openal-soft.i686
-openssl.i686
 pulseaudio-libs.i686
+
+# Video acceleration
 libva.i686
 libvdpau.i686
+
+# Common game dependencies
 libgcrypt.i686
 gtk2.i686
 gtk3.i686
 libjpeg-turbo.i686
 libpng.i686
-libusb.i686
 ocl-icd.i686
+
+# SDL2 (many games use this)
 SDL2.i686
 SDL2_image.i686
 SDL2_mixer.i686
 SDL2_ttf.i686
+
+# Network and misc
 unixODBC.i686
 samba-libs.i686
 gnutls.i686
@@ -211,7 +221,7 @@ gnutls.i686
 corectrl
 earlyoom
 zram-generator
-preload
+# preload - not in Fedora repos anymore
 irqbalance
 tuned
 tuned-utils
@@ -219,7 +229,7 @@ tuned-profiles-atomic
 htop
 btop
 nvtop
-neofetch
+# neofetch - moved to EPEL/manual install
 inxi
 
 # Multimedia Codecs and Libraries
@@ -233,7 +243,7 @@ gstreamer1-plugins-bad-free-extras
 gstreamer1-plugins-ugly-free
 gstreamer1-libav
 gstreamer1-vaapi
-libdvdcss
+# libdvdcss - in RPM Fusion, installed in %post
 libheif
 pipewire
 pipewire-alsa
@@ -246,11 +256,8 @@ pavucontrol
 
 # Additional Gaming-Related Software
 discord
-obs-studio
-obs-studio-plugin-browser
-obs-studio-plugin-websocket
-obs-studio-plugin-vkcapture
-joystickwake
+# obs-studio and plugins removed - not essential for gaming
+# joystickwake - not in standard repos
 antimicrox
 
 # Flatpak Support
@@ -392,6 +399,15 @@ fi
 dnf install -y \
   https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
   https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+
+# Install packages that require RPM Fusion
+echo "Installing additional packages from RPM Fusion..."
+dnf install -y libdvdcss
+dnf install -y grub-btrfs
+dnf install -y heroic-games-launcher
+dnf install -y joystickwake
+dnf install -y neofetch
+dnf install -y kde-partitionmanager
 
 # Configure Snapper for automatic snapshots
 echo "Configuring Snapper..."
