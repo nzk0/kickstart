@@ -462,9 +462,6 @@ flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flat
 flatpak install -y flathub com.heroicgameslauncher.hgl
 flatpak install -y flathub net.davidotek.pupgui2  # ProtonUp-Qt for managing Proton-GE
 flatpak install -y flathub com.github.Matoking.protontricks
-flatpak install -y flathub io.github.flattool.Warehouse
-flatpak install -y flathub org.kde.kdenlive
-flatpak install -y flathub org.kde.krita
 
 # Create directory for Proton-GE installation script
 mkdir -p /usr/local/bin
