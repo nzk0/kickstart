@@ -16,13 +16,13 @@ graphical
 
 # Network information
 network --bootproto=dhcp --device=link --activate
-network --hostname=EOS-PC
+network --hostname=fedora-gaming
 
 # Use Fedora mirrors
 url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch
 
 # Run the initial setup on first boot
-firstboot --reconfig
+firstboot --enable
 
 # Lock root account (user will set it during initial setup)
 rootpw --lock
@@ -57,14 +57,13 @@ repo --name=rpmfusion-nonfree --install --mirrorlist=https://mirrors.rpmfusion.o
 repo --name=rpmfusion-nonfree-updates --install --mirrorlist=https://mirrors.rpmfusion.org/mirrorlist?repo=nonfree-fedora-updates-released-$releasever&arch=$basearch
 
 %packages
-# Core System
+# Core System (minimal, without bloat)
 @core
 @base-x
 @fonts
-@standard
 @hardware-support
 @networkmanager-submodules
-@development-tools
+# Removed @standard and @development-tools to avoid database packages
 
 # KDE Plasma Desktop
 @kde-desktop
@@ -302,12 +301,30 @@ vim
 nano
 micro
 
+# Exclude unnecessary server packages
+-mariadb*
+-mysql*
+-postgresql*
+-httpd
+-nginx
+-php*
+-perl-DBD-MySQL
+-perl-DBD-MariaDB
+
 %end
 
 %post --log=/root/kickstart-post.log
 #!/bin/bash
 
 echo "Starting post-installation configuration..."
+
+# Ensure initial-setup will run on first boot
+systemctl enable initial-setup.service
+systemctl enable initial-setup-graphical.service
+
+# Create the flag that ensures initial setup runs
+rm -f /etc/sysconfig/initial-setup
+touch /etc/reconfigSys
 
 # Detect and install NVIDIA drivers if NVIDIA GPU is present
 echo "Checking for NVIDIA GPU..."
@@ -462,6 +479,9 @@ flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flat
 flatpak install -y flathub com.heroicgameslauncher.hgl
 flatpak install -y flathub net.davidotek.pupgui2  # ProtonUp-Qt for managing Proton-GE
 flatpak install -y flathub com.github.Matoking.protontricks
+flatpak install -y flathub io.github.flattool.Warehouse
+flatpak install -y flathub org.kde.kdenlive
+flatpak install -y flathub org.kde.krita
 
 # Create directory for Proton-GE installation script
 mkdir -p /usr/local/bin
