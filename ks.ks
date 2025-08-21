@@ -1,60 +1,60 @@
-# Fedora KDE Gaming-Optimized Kickstart File
-# Features: KDE Plasma, Vimix GRUB theme, Snapper snapshots, NVIDIA auto-detection
-# Use with Fedora Everything NetInstall or Server ISO (NOT Live ISO)
+# Fedora KDE Gaming-Optimized Kickstart
+# Target: Fedora 42 (KDE-only, OEM-style first boot)
+# Features: KDE Plasma 6, Snapper (Btrfs), NVIDIA auto-detect, RPM Fusion, Plymouth, gaming stack
+# Use with: Fedora Everything NetInstall or Server ISO (NOT Live ISO)
 
-# System language
+# --- Locale, keyboard, time ---
 lang en_US.UTF-8
-
-# Keyboard layouts
 keyboard --vckeymap=us --xlayouts='us'
-
-# System timezone (adjust as needed)
 timezone America/New_York --utc
 
-# Use graphical install
+# --- Installer mode ---
 graphical
 
-# Network information
+# --- Networking ---
 network --bootproto=dhcp --device=link --activate
 
-# Use Fedora mirrors
+# --- Mirrors / repos used by Anaconda ---
 url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch
 
-# Run the initial setup on first boot
-firstboot --enable
+# --- OEM first-boot experience ---
+firstboot --reconfig
+# Ensure Initial Setup runs BEFORE any display manager; defer SDDM until after Initial Setup
+services --enabled=initial-setup,initial-setup-graphical --disabled=sddm
 
-# Lock root account (user will set it during initial setup)
+# Lock root (user will be created by Initial Setup)
 rootpw --lock
 
-# System bootloader configuration - quiet boot with splash
-bootloader --location=mbr --append="quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 systemd.show_status=false rd.systemd.show_status=false"
+# --- Bootloader ---
+# UEFI system assumed (we create /boot/efi). Keep quiet/splash and clean boot.
+bootloader --append="quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 systemd.show_status=false rd.systemd.show_status=false"
 
-# IMPORTANT: Btrfs partitioning for Snapper snapshots
-# WARNING: This will erase ALL data on the first disk
+# --- Disk layout (WARNING: wipes sda) ---
 clearpart --all --initlabel --drives=sda
 
-# Create partitions with Btrfs
-part /boot/efi --fstype="efi" --size=512 --ondisk=sda
-part /boot --fstype="ext4" --size=2048 --ondisk=sda
-part btrfs.01 --fstype="btrfs" --size=1 --grow --ondisk=sda
+part /boot/efi --fstype="efi"  --size=512  --ondisk=sda
+part /boot     --fstype="ext4" --size=2048 --ondisk=sda
+part btrfs.01  --fstype="btrfs" --size=1 --grow --ondisk=sda
 
-# Create Btrfs subvolumes for Snapper
 btrfs none --label=fedora --data=single btrfs.01
-btrfs / --subvol --name=@ LABEL=fedora
-btrfs /home --subvol --name=@home LABEL=fedora
-btrfs /var --subvol --name=@var LABEL=fedora
-btrfs /.snapshots --subvol --name=@snapshots LABEL=fedora
+btrfs /           --subvol --name=@           LABEL=fedora
+btrfs /home       --subvol --name=@home       LABEL=fedora
+btrfs /var        --subvol --name=@var        LABEL=fedora
+btrfs /.snapshots --subvol --name=@snapshots  LABEL=fedora
 
-# Accept the license
+# --- License ---
 eula --agreed
 
-# Enable all repositories we'll need
+# --- Extra repos for install time ---
 repo --name=updates --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=updates-released-f$releasever&arch=$basearch
 repo --name=rpmfusion-free --install --mirrorlist=https://mirrors.rpmfusion.org/mirrorlist?repo=free-fedora-$releasever&arch=$basearch
 repo --name=rpmfusion-free-updates --install --mirrorlist=https://mirrors.rpmfusion.org/mirrorlist?repo=free-fedora-updates-released-$releasever&arch=$basearch
 repo --name=rpmfusion-nonfree --install --mirrorlist=https://mirrors.rpmfusion.org/mirrorlist?repo=nonfree-fedora-$releasever&arch=$basearch
 repo --name=rpmfusion-nonfree-updates --install --mirrorlist=https://mirrors.rpmfusion.org/mirrorlist?repo=nonfree-fedora-updates-released-$releasever&arch=$basearch
 
+# ============================
+# Packages
+# ============================
 %packages --excludedocs
 # Core System
 @core
@@ -63,9 +63,8 @@ repo --name=rpmfusion-nonfree-updates --install --mirrorlist=https://mirrors.rpm
 @standard
 @hardware-support
 @networkmanager-submodules
-# Removed @development-tools to avoid database packages
 
-# KDE Plasma Desktop
+# KDE Plasma Desktop (Plasma 6)
 @kde-desktop
 kde-settings
 kde-settings-pulseaudio
@@ -75,7 +74,6 @@ sddm-themes
 sddm-kcm
 plasma-desktop
 plasma-workspace
-plasma-workspace-wayland
 plasma-wayland-protocols
 plasma-systemmonitor
 plasma-pa
@@ -102,18 +100,17 @@ kscreen
 kinfocenter
 krdp
 
-# KDE Applications
+# KDE Apps & tools
 yakuake
 krfb
 krdc
 ksystemlog
-# partitionmanager - not in standard repos
 filelight
 kdf
 kcharselect
 kdialog
 
-# Initial Setup for KDE
+# Initial Setup (GUI)
 initial-setup
 initial-setup-gui
 
@@ -127,20 +124,18 @@ plymouth-scripts
 plymouth-system-theme
 kernel-core
 
-# GRUB theming and snapshot support
+# GRUB tools & Btrfs integration
 grub2-tools-extra
 grub2-tools-efi
-# grub-customizer is in COPR, not main repos
-# grub-btrfs will be installed in %post
-# imagemagick removed - not needed
+# grub-btrfs installed in %post (from RPM Fusion if available)
 
-# Btrfs and Snapper
+# Btrfs & Snapper
 btrfs-progs
 snapper
-python3-dnf-plugin-snapper
+libdnf5-plugin-actions
 inotify-tools
 
-# Gaming Core Components
+# Gaming Core
 gamemode
 gamescope
 mangohud
@@ -154,33 +149,28 @@ winetricks
 protontricks
 bottles
 
-# Vulkan and Graphics
+# Vulkan & Graphics
 vulkan-tools
 vulkan-loader
 vulkan-headers
 vulkan-validation-layers
-vkBasalt
+vkbasalt
 mesa-vulkan-drivers
 mesa-vdpau-drivers
 mesa-va-drivers
 libva-utils
 vdpauinfo
 
-# 32-bit Libraries for Gaming (REQUIRED for Steam and many games)
-# Core system libraries
+# 32-bit libs (Steam & legacy games)
 glibc.i686
 glibc-devel.i686
 libgcc.i686
 libstdc++.i686
-
-# Graphics and rendering
 mesa-libGL.i686
 mesa-libGLU.i686
 mesa-dri-drivers.i686
 mesa-vulkan-drivers.i686
 vulkan-loader.i686
-
-# X11 libraries (many games need these)
 libXcomposite.i686
 libXcursor.i686
 libXi.i686
@@ -188,51 +178,38 @@ libXinerama.i686
 libXrandr.i686
 libXrender.i686
 libXxf86vm.i686
-
-# Audio libraries
 alsa-lib.i686
 openal-soft.i686
 pulseaudio-libs.i686
-
-# Video acceleration
 libva.i686
 libvdpau.i686
-
-# Common game dependencies
 libgcrypt.i686
 gtk2.i686
 gtk3.i686
 libjpeg-turbo.i686
 libpng.i686
 ocl-icd.i686
-
-# SDL2 (many games use this)
 SDL2.i686
 SDL2_image.i686
 SDL2_mixer.i686
 SDL2_ttf.i686
-
-# Network and misc
 unixODBC.i686
 samba-libs.i686
 gnutls.i686
 
-# Performance and System Tools
+# Performance & System Tools
 corectrl
 earlyoom
 zram-generator
-# preload - not in Fedora repos anymore
 irqbalance
 tuned
 tuned-utils
-tuned-profiles-atomic
 htop
 btop
 nvtop
-# neofetch - moved to EPEL/manual install
 inxi
 
-# Multimedia Codecs and Libraries
+# Multimedia / Codecs
 ffmpeg
 ffmpeg-libs
 gstreamer1-plugins-base
@@ -243,7 +220,6 @@ gstreamer1-plugins-bad-free-extras
 gstreamer1-plugins-ugly-free
 gstreamer1-libav
 gstreamer1-vaapi
-# libdvdcss - in RPM Fusion, installed in %post
 libheif
 pipewire
 pipewire-alsa
@@ -254,17 +230,13 @@ wireplumber
 easyeffects
 pavucontrol
 
-# Additional Gaming-Related Software
-discord
-# obs-studio and plugins removed - not essential for gaming
-# joystickwake - not in standard repos
+# Gamepad & extras
 antimicrox
 
-# Flatpak Support
+# Flatpak support
 flatpak
 xdg-desktop-portal
 xdg-desktop-portal-kde
-xdg-desktop-portal-wlr
 
 # System Utilities
 kernel-tools
@@ -278,7 +250,7 @@ grub2-efi-x64
 grub2-efi-x64-modules
 shim-x64
 
-# Development Tools (for building Proton-GE and other tools)
+# Dev tools (Proton-GE builds & misc)
 git
 gcc
 gcc-c++
@@ -290,146 +262,120 @@ patch
 autoconf
 automake
 
-# Python tools
+# Python
 python3-pip
 python3-setuptools
 
-# File System Tools
+# Filesystems
 ntfs-3g
-exfat-utils
-fuse-exfat
+exfatprogs
 
-# Compression Tools
+# Compression tools
 p7zip
 p7zip-plugins
 unrar
 unzip
 
-# Terminal Emulators and Shells
+# Shells & terminals
 fish
 zsh
 alacritty
 
-# Text Editors
+# Editors
 vim
 nano
 micro
 
 %end
 
+# ============================
+# Post-install configuration
+# ============================
 %post --log=/root/kickstart-post.log
 #!/bin/bash
+set -euo pipefail
 
 echo "Starting post-installation configuration..."
 
-# Ensure initial-setup will run on first boot
-echo "Configuring initial setup..."
-systemctl enable initial-setup.service || echo "WARNING: Could not enable initial-setup.service"
-systemctl enable initial-setup-graphical.service || echo "WARNING: Could not enable initial-setup-graphical.service"
-
-# Create the flag that ensures initial setup runs
-rm -f /etc/sysconfig/initial-setup
+# --- Ensure Initial Setup runs on first boot ---
+echo "Configuring Initial Setup..."
+systemctl enable initial-setup.service
+systemctl enable initial-setup-graphical.service
 touch /etc/reconfigSys
+rm -f /etc/sysconfig/initial-setup
+rm -f /var/lib/initial-setup/initial-setup-done
+cat > /etc/sysconfig/initial-setup << 'EOF'
+RUN_INITIAL_SETUP=YES
+EOF
 
-# Verify initial-setup is installed
-if ! rpm -q initial-setup initial-setup-gui &>/dev/null; then
-    echo "ERROR: initial-setup packages not installed!"
-    dnf install -y initial-setup initial-setup-gui || echo "ERROR: Could not install initial-setup"
-fi
+# Gate SDDM until after Initial Setup completes, then enable+start it
+cat > /etc/systemd/system/oem-after-initial-setup.service << 'EOF'
+[Unit]
+Description=Enable and start SDDM after Initial Setup completes
+After=initial-setup-graphical.service
+Requires=initial-setup-graphical.service
 
-# Create a fallback user if initial-setup fails
-# This user can be deleted after creating your real user
-cat > /usr/local/bin/create-emergency-user.sh << 'EOFU'
-#!/bin/bash
-if [ ! -d /home/gamer ] && [ $(ls /home | wc -l) -eq 0 ]; then
-    echo "No users found! Creating emergency user..."
-    useradd -m -G wheel -s /bin/bash gamer
-    echo "gamer:changeme" | chpasswd
-    echo "Emergency user 'gamer' created with password 'changeme'"
-    echo "Please create your real user and delete this one!"
-    touch /etc/emergency-user-created
-fi
-EOFU
-chmod +x /usr/local/bin/create-emergency-user.sh
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl enable sddm.service
+ExecStart=/usr/bin/systemctl --no-block start sddm.service
 
-# Add to rc.local as fallback
-cat > /etc/rc.d/rc.local << 'EORC'
-#!/bin/bash
-# Emergency user creation if initial-setup didn't run
-if [ ! -f /var/lib/initial-setup/initial-setup-done ] && [ $(ls /home | wc -l) -eq 0 ]; then
-    /usr/local/bin/create-emergency-user.sh
-fi
-EORC
-chmod +x /etc/rc.d/rc.local
+[Install]
+WantedBy=graphical.target
+EOF
+systemctl enable oem-after-initial-setup.service
 
-# Double-check initial-setup will run
-if [ ! -f /etc/sysconfig/initial-setup ]; then
-    echo "run_initial_setup=YES" > /etc/sysconfig/initial-setup
-fi
-
-echo "Initial setup configuration completed"
-
-# Detect and install NVIDIA drivers if NVIDIA GPU is present
+# --- NVIDIA auto-detect and driver install ---
 echo "Checking for NVIDIA GPU..."
-if lspci | grep -i nvidia > /dev/null; then
-    echo "NVIDIA GPU detected. Installing drivers..."
-    dnf install -y akmod-nvidia xorg-x11-drv-nvidia xorg-x11-drv-nvidia-libs xorg-x11-drv-nvidia-libs.i686
-    dnf install -y nvidia-vaapi-driver nvidia-settings
-    dnf install -y xorg-x11-drv-nvidia-cuda xorg-x11-drv-nvidia-cuda-libs
-    dnf install -y nvidia-gpu-firmware
-    
-    # Configure NVIDIA for Wayland
-    cat > /etc/modprobe.d/nvidia.conf << 'EOF'
+if lspci | grep -qi nvidia; then
+  echo "NVIDIA GPU detected. Installing drivers..."
+  dnf install -y akmod-nvidia xorg-x11-drv-nvidia xorg-x11-drv-nvidia-libs xorg-x11-drv-nvidia-libs.i686
+  dnf install -y nvidia-vaapi-driver nvidia-settings
+  dnf install -y xorg-x11-drv-nvidia-cuda xorg-x11-drv-nvidia-cuda-libs
+  dnf install -y nvidia-gpu-firmware || true
+  cat > /etc/modprobe.d/nvidia.conf << 'EOF'
 options nvidia-drm modeset=1
 options nvidia NVreg_UsePageAttributeTable=1
 options nvidia NVreg_EnablePCIeGen3=1
 EOF
-    
-    # Enable nvidia services
-    systemctl enable nvidia-hibernate.service
-    systemctl enable nvidia-suspend.service
-    systemctl enable nvidia-resume.service
-    
-    echo "NVIDIA drivers installed successfully"
+  systemctl enable nvidia-hibernate.service || true
+  systemctl enable nvidia-suspend.service || true
+  systemctl enable nvidia-resume.service || true
 else
-    echo "No NVIDIA GPU detected. Skipping NVIDIA driver installation."
+  echo "No NVIDIA GPU detected. Skipping NVIDIA driver installation."
 fi
 
-# Enable RPM Fusion repositories (backup method if repo commands fail)
+# --- RPM Fusion enable (runtime safety) ---
+FEDORA_VERSION=$(rpm -E %fedora)
 dnf install -y \
-  https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
-  https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+  "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm" \
+  "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm" || {
+    echo "RPM Fusion release rpms not fetched; trying package names..."
+    dnf install -y rpmfusion-free-release rpmfusion-nonfree-release || true
+}
 
-# Install packages that require RPM Fusion
-echo "Installing additional packages from RPM Fusion..."
-dnf install -y libdvdcss
-dnf install -y grub-btrfs
-dnf install -y heroic-games-launcher
-dnf install -y joystickwake
-dnf install -y neofetch
-dnf install -y kde-partitionmanager
+# --- Extras from RPM Fusion / fallbacks ---
+dnf install -y libdvdcss || echo "libdvdcss not available"
+dnf install -y grub-btrfs || echo "grub-btrfs not available"
+dnf install -y heroic-games-launcher || {
+  echo "heroic-games-launcher not in repos, installing Flatpak..."
+  flatpak install -y flathub com.heroicgameslauncher.hgl
+}
+dnf install -y joystickwake || echo "joystickwake not available"
+dnf install -y neofetch || dnf install -y fastfetch || echo "fetch tool not available"
+dnf install -y kde-partitionmanager || dnf install -y partitionmanager || true
 
-# Configure Snapper for automatic snapshots
-echo "Configuring Snapper..."
-
-# Wait for the filesystem to be ready
-sleep 5
-
-# Check if /.snapshots exists before creating config
+# --- Configure Snapper (root + home) ---
+sleep 3
 if [ -d /.snapshots ]; then
-    # Create snapper configuration for root
-    snapper -c root create-config / || echo "WARNING: Snapper config for root may already exist"
+  snapper -c root create-config / || echo "Snapper root config may already exist"
 else
-    echo "WARNING: /.snapshots directory not found, skipping root config"
+  echo "/.snapshots missing; skipping root config"
 fi
-
 if [ -d /home ]; then
-    snapper -c home create-config /home || echo "WARNING: Snapper config for home may already exist"
-else
-    echo "WARNING: /home not found, skipping home config"
+  snapper -c home create-config /home || echo "Snapper home config may already exist"
 fi
 
-# Configure snapper for root
 cat > /etc/snapper/configs/root << 'EOF'
 SUBVOLUME="/"
 FSTYPE="btrfs"
@@ -451,7 +397,6 @@ NUMBER_LIMIT="50"
 NUMBER_LIMIT_IMPORTANT="10"
 EOF
 
-# Configure snapper for home
 cat > /etc/snapper/configs/home << 'EOF'
 SUBVOLUME="/home"
 FSTYPE="btrfs"
@@ -473,17 +418,19 @@ NUMBER_LIMIT="30"
 NUMBER_LIMIT_IMPORTANT="10"
 EOF
 
-# Enable snapper services
 systemctl enable snapper-timeline.timer
 systemctl enable snapper-cleanup.timer
 systemctl enable snapper-boot.timer
 
-# Configure grub-btrfs
-cat > /etc/default/grub-btrfs/config << 'EOF'
-#!/bin/bash
-# Configuration for grub-btrfs
+# --- Hook Snapper into DNF5 transactions ---
+mkdir -p /etc/dnf/actions.d
+cat > /etc/dnf/actions.d/snapper.actions << 'EOF'
+pre_transaction  = /usr/bin/snapper -c root create -t pre  -d "DNF5 pre-transaction"
+post_transaction = /usr/bin/snapper -c root create -t post -d "DNF5 post-transaction"
+EOF
 
-# Show snapshots in grub menu
+# --- grub-btrfs config ---
+cat > /etc/default/grub-btrfs/config << 'EOF'
 GRUB_BTRFS_SHOW_SNAPSHOTS_FOUND="true"
 GRUB_BTRFS_SHOW_SNAPSHOTS_FOUND_TITLE="Fedora Linux Snapshots"
 GRUB_BTRFS_TITLE_FORMAT="(%s) %y-%m-%d %H:%M:%S %r"
@@ -495,34 +442,21 @@ GRUB_BTRFS_GRUB_DIRNAME="/boot/grub2"
 GRUB_BTRFS_MKCONFIG="/usr/sbin/grub2-mkconfig"
 GRUB_BTRFS_SCRIPT_CHECK="grub2-script-check"
 EOF
+systemctl enable grub-btrfs.path || true
 
-# Enable grub-btrfs
-systemctl enable grub-btrfs.path
-
-# Install and configure Vimix GRUB theme
-echo "Installing Vimix GRUB theme..."
-
-# First, ensure GRUB theme directory exists
+# --- Install and configure Vimix GRUB theme ---
 mkdir -p /boot/grub2/themes
-
-# Clone and install theme
 cd /tmp
 git clone https://github.com/vinceliuice/grub2-themes.git
 cd grub2-themes
-
-# Install Vimix theme with custom options
-./install.sh -b -t vimix -s 1080p
-
-# Alternative method if the installer fails
+./install.sh -b -t vimix -s 1080p || true
 if [ ! -d /boot/grub2/themes/Vimix ]; then
-    echo "Theme installer failed, trying manual installation..."
-    mkdir -p /boot/grub2/themes/Vimix
-    cp -r themes/Vimix/* /boot/grub2/themes/Vimix/ 2>/dev/null || true
+  mkdir -p /boot/grub2/themes/Vimix
+  cp -r themes/Vimix/* /boot/grub2/themes/Vimix/ 2>/dev/null || true
 fi
 
-# Configure GRUB for pretty boot
+# /etc/default/grub aligned with Fedora (BLS on)
 cat > /etc/default/grub << 'EOF'
-# Basic settings
 GRUB_TIMEOUT=5
 GRUB_TIMEOUT_STYLE=menu
 GRUB_DISTRIBUTOR="Fedora Gaming"
@@ -533,150 +467,92 @@ GRUB_TERMINAL_OUTPUT="gfxterm"
 GRUB_GFXMODE=1920x1080,1366x768,1024x768,auto
 GRUB_GFXPAYLOAD_LINUX=keep
 GRUB_DISABLE_OS_PROBER=false
-GRUB_ENABLE_BLSCFG=false
+GRUB_ENABLE_BLSCFG=true
 
-# Remove verbose boot messages
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 systemd.show_status=false rd.systemd.show_status=false"
 GRUB_CMDLINE_LINUX="rhgb quiet"
 
-# Theme
 GRUB_THEME="/boot/grub2/themes/Vimix/theme.txt"
-
-# Background (if theme fails)
 GRUB_BACKGROUND="/boot/grub2/themes/Vimix/background.png"
 EOF
-
-# Ensure theme files have correct permissions
 chmod -R 755 /boot/grub2/themes
 
-# Rebuild initramfs to include Plymouth
-echo "Configuring Plymouth..."
+# --- Plymouth theme & initramfs ---
 plymouth-set-default-theme breeze
 dracut --regenerate-all --force
 
-# Update GRUB configuration
-echo "Updating GRUB configuration..."
+# --- Regenerate GRUB config the Fedora way (BLS-friendly) ---
 if [ -d /sys/firmware/efi ]; then
-    grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg
+  grub2-mkconfig -o /etc/grub2-efi.cfg
 else
-    grub2-mkconfig -o /boot/grub2/grub.cfg
+  grub2-mkconfig -o /etc/grub2.cfg
 fi
 
-# Verify theme installation
-if [ -f /boot/grub2/themes/Vimix/theme.txt ]; then
-    echo "Vimix theme installed successfully"
-else
-    echo "WARNING: Vimix theme installation may have failed"
-fi
-
-# Configure Plymouth for KDE
-
-# Enable Flathub
+# --- Flatpak (Flathub) & apps (Discord via Flatpak for reliability) ---
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
-# Install additional Flatpak applications
 flatpak install -y flathub com.heroicgameslauncher.hgl
-flatpak install -y flathub net.davidotek.pupgui2  # ProtonUp-Qt for managing Proton-GE
+flatpak install -y flathub net.davidotek.pupgui2
 flatpak install -y flathub com.github.Matoking.protontricks
 flatpak install -y flathub io.github.flattool.Warehouse
 flatpak install -y flathub org.kde.kdenlive
 flatpak install -y flathub org.kde.krita
+flatpak install -y flathub com.discordapp.Discord
 
-# Create directory for Proton-GE installation script
+# --- Proton-GE helper ---
 mkdir -p /usr/local/bin
-
-# Create Proton-GE installer script for users
 cat > /usr/local/bin/install-proton-ge << 'EOF'
 #!/bin/bash
-# Script to install latest Proton-GE for current user
-
 PROTON_GE_URL="https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest"
 STEAM_COMPAT_DIR="$HOME/.steam/root/compatibilitytools.d"
-
 echo "Installing latest Proton-GE for $USER..."
-
-# Create compatibility tools directory
 mkdir -p "$STEAM_COMPAT_DIR"
-
-# Get latest release URL
 LATEST_RELEASE=$(curl -s $PROTON_GE_URL | grep "browser_download_url.*tar.gz" | cut -d '"' -f 4 | head -1)
-
-if [ -z "$LATEST_RELEASE" ]; then
-    echo "Error: Could not fetch latest Proton-GE release"
-    exit 1
-fi
-
+[ -z "$LATEST_RELEASE" ] && { echo "Could not fetch latest Proton-GE release"; exit 1; }
 FILENAME=$(basename "$LATEST_RELEASE")
-echo "Downloading $FILENAME..."
-
-# Download and extract
 cd /tmp
 wget -q --show-progress "$LATEST_RELEASE"
-echo "Extracting to Steam compatibility tools directory..."
 tar -xzf "$FILENAME" -C "$STEAM_COMPAT_DIR"
 rm "$FILENAME"
-
-echo "Proton-GE installed successfully!"
-echo "Restart Steam to see it in compatibility tools"
+echo "Proton-GE installed. Restart Steam."
 EOF
-
 chmod +x /usr/local/bin/install-proton-ge
 
-# Create snapshot management helper script
+# --- Snapshot manager helper (uses correct GRUB targets) ---
 cat > /usr/local/bin/snapshot-manager << 'EOF'
 #!/bin/bash
-# Simple snapshot management helper
-
+set -e
+target_cfg="/etc/grub2.cfg"
+[ -d /sys/firmware/efi ] && target_cfg="/etc/grub2-efi.cfg"
 case "$1" in
-    create)
-        echo "Creating manual snapshot..."
-        snapper -c root create -d "${2:-Manual snapshot}" --userdata important=yes
-        snapper -c home create -d "${2:-Manual snapshot}" --userdata important=yes
-        echo "Snapshot created. Updating GRUB..."
-        grub2-mkconfig -o /boot/grub2/grub.cfg
-        echo "Done!"
-        ;;
-    list)
-        echo "=== Root snapshots ==="
-        snapper -c root list
-        echo ""
-        echo "=== Home snapshots ==="
-        snapper -c home list
-        ;;
-    cleanup)
-        echo "Cleaning up old snapshots..."
-        snapper -c root cleanup number
-        snapper -c home cleanup number
-        echo "Updating GRUB..."
-        grub2-mkconfig -o /boot/grub2/grub.cfg
-        echo "Done!"
-        ;;
-    *)
-        echo "Usage: snapshot-manager {create|list|cleanup} [description]"
-        echo ""
-        echo "  create [description]  - Create a new snapshot with optional description"
-        echo "  list                  - List all snapshots"
-        echo "  cleanup              - Clean up old snapshots according to policy"
-        ;;
+  create)
+    snapper -c root create -d "${2:-Manual snapshot}" --userdata important=yes || true
+    snapper -c home create -d "${2:-Manual snapshot}" --userdata important=yes || true
+    grub2-mkconfig -o "$target_cfg" || true
+    echo "Snapshot created."
+    ;;
+  list)
+    echo "=== Root snapshots ==="; snapper -c root list || true
+    echo; echo "=== Home snapshots ==="; snapper -c home list || true
+    ;;
+  cleanup)
+    snapper -c root cleanup number || true
+    snapper -c home cleanup number || true
+    grub2-mkconfig -o "$target_cfg" || true
+    echo "Cleanup done."
+    ;;
+  *)
+    echo "Usage: snapshot-manager {create|list|cleanup} [description]"
+    ;;
 esac
 EOF
-
 chmod +x /usr/local/bin/snapshot-manager
 
-# Create first-login setup script
+# --- First-login gaming init (per-user) ---
 cat > /etc/profile.d/gaming-first-login.sh << 'EOF'
 #!/bin/bash
 if [ ! -f ~/.gaming-setup-complete ] && [ -n "$DISPLAY" ]; then
-    echo "Initializing gaming environment for $USER..."
-    
-    # Create gaming directories
-    mkdir -p ~/Games
-    mkdir -p ~/.local/share/applications
-    mkdir -p ~/.config/MangoHud
-    mkdir -p ~/.config/vkBasalt
-    
-    # Setup MangoHud config
-    cat > ~/.config/MangoHud/MangoHud.conf << 'MHEOF'
+  mkdir -p ~/Games ~/.local/share/applications ~/.config/MangoHud ~/.config/vkBasalt
+  cat > ~/.config/MangoHud/MangoHud.conf << 'MHEOF'
 toggle_fps_limit=F1
 toggle_hud=Shift_R+F12
 fps_limit=144,60,0
@@ -685,76 +561,37 @@ gpu_stats
 gpu_temp
 gpu_load_change
 gpu_load_value=50,90
-gpu_load_color=FFFFFF,FFAA7F,CC0000
 gpu_text=GPU
 cpu_stats
 cpu_temp
 cpu_load_change
 core_load_change
 cpu_load_value=50,90
-cpu_load_color=FFFFFF,FFAA7F,CC0000
-cpu_color=2e97cb
-cpu_text=CPU
-io_color=a491d3
-vram
-vram_color=ad64c1
-ram
-ram_color=c26693
 fps
-engine_color=eb5b5b
-gpu_color=2e9762
-wine_color=eb5b5b
-frame_timing=1
-frametime_color=00ff00
-media_player_color=ffffff
 background_alpha=0.3
 font_size=24
-background_color=020202
 position=top-left
 text_color=ffffff
 round_corners=10
 MHEOF
-    
-    # Setup vkBasalt config
-    cat > ~/.config/vkBasalt/vkBasalt.conf << 'VKEOF'
+  cat > ~/.config/vkBasalt/vkBasalt.conf << 'VKEOF'
 effects = cas
-cas = /usr/share/vkBasalt/shaders/cas.frag.spv
 casSharpness = 0.5
 VKEOF
-    
-    # Install Proton-GE automatically
-    /usr/local/bin/install-proton-ge
-    
-    # Create Steam launch options helper
-    cat > ~/Games/steam-launch-options.txt << 'SLEOF'
-# Useful Steam Launch Options for Games:
-
-# Enable GameMode and MangoHud:
+  /usr/local/bin/install-proton-ge || true
+  cat > ~/Games/steam-launch-options.txt << 'SLEOF'
 gamemoderun mangohud %command%
-
-# For Nvidia users with VRR/G-Sync:
 __GL_GSYNC_ALLOWED=1 __GL_VRR_ALLOWED=1 %command%
-
-# For better Proton compatibility:
 PROTON_ENABLE_NVAPI=1 PROTON_HIDE_NVIDIA_GPU=0 VKD3D_CONFIG=dxr %command%
-
-# Full combination example:
-gamemoderun __GL_GSYNC_ALLOWED=1 __GL_VRR_ALLOWED=1 mangohud %command%
-
-# For problematic games (try if game doesn't launch):
 PROTON_USE_WINED3D=1 %command%
 SLEOF
-    
-    # Create a desktop notification about gaming setup
-    notify-send "Gaming Setup Complete" "Proton-GE installed. Check ~/Games/steam-launch-options.txt for tips!" -i applications-games
-    
-    touch ~/.gaming-setup-complete
+  notify-send "Gaming Setup Complete" "Proton-GE installed. See ~/Games/steam-launch-options.txt" -i applications-games || true
+  touch ~/.gaming-setup-complete
 fi
 EOF
-
 chmod +x /etc/profile.d/gaming-first-login.sh
 
-# Configure GameMode
+# --- GameMode ---
 cat > /etc/gamemode.ini << 'EOF'
 [general]
 renice=10
@@ -777,39 +614,44 @@ start=notify-send "GameMode started"
 end=notify-send "GameMode ended"
 EOF
 
-# Enable and configure services
+# --- Enable key services (but NOT sddm yet) ---
 systemctl enable tuned
 systemctl enable earlyoom
 systemctl enable irqbalance
-systemctl enable sddm
 
-# Set tuned profile for balanced performance
-tuned-adm profile balanced
+# --- Tuned profile ---
+tuned-adm profile balanced || true
 
-# Configure zram
+# --- zram ---
 cat > /etc/systemd/zram-generator.conf << 'EOF'
 [zram0]
 zram-size = min(ram / 2, 4096)
 compression-algorithm = zstd
 EOF
 
-# Configure swappiness for gaming
-echo "vm.swappiness=10" >> /etc/sysctl.d/99-gaming.conf
-echo "vm.vfs_cache_pressure=50" >> /etc/sysctl.d/99-gaming.conf
+# --- sysctl tweaks ---
+mkdir -p /etc/sysctl.d
+echo "vm.swappiness=10"            > /etc/sysctl.d/99-gaming.conf
+echo "vm.vfs_cache_pressure=50"   >> /etc/sysctl.d/99-gaming.conf
 
-# Increase file descriptor limits
+# --- ulimit ---
 cat > /etc/security/limits.d/99-gaming.conf << 'EOF'
 * soft nofile 524288
 * hard nofile 524288
 EOF
 
-# Add multilib repo configuration (for better 32-bit support)
-echo "multilib_policy=best" >> /etc/dnf/dnf.conf
-echo "max_parallel_downloads=10" >> /etc/dnf/dnf.conf
-echo "fastestmirror=True" >> /etc/dnf/dnf.conf
+# --- DNF config ---
+echo "multilib_policy=best"       >> /etc/dnf/dnf.conf
+echo "max_parallel_downloads=10"  >> /etc/dnf/dnf.conf
+echo "fastestmirror=True"         >> /etc/dnf/dnf.conf
 
-# Configure SDDM for autologin (disabled by default)
-cat > /etc/sddm.conf.d/kde_settings.conf << 'EOF'
+# --- SDDM basic config (no autologin) ---
+mkdir -p /etc/sddm.conf.d
+cat > /etc/sddm.conf.d/initial-setup.conf << 'EOF'
+[Autologin]
+User=
+Session=
+
 [Theme]
 Current=breeze
 
@@ -818,76 +660,39 @@ MaximumUid=60000
 MinimumUid=1000
 EOF
 
-# Create README for user
+# --- README in new users' homes ---
+mkdir -p /etc/skel
 cat > /etc/skel/README-GAMING.txt << 'EOF'
 Welcome to your Fedora KDE Gaming System!
-==========================================
 
-This system has been optimized for gaming with:
+This system is optimized for gaming:
+- Steam + Proton (with Proton-GE helper)
+- Lutris, GameMode, MangoHud, Vulkan + 32-bit libs
+- Automatic Btrfs snapshots (Snapper + grub-btrfs)
+- KDE Plasma desktop, Plymouth theming
 
-🎮 Gaming Components:
-- Steam with Proton support
-- Lutris for non-Steam games  
-- GameMode for performance optimization
-- MangoHud for performance monitoring
-- Latest Proton-GE (installed on first login)
-- Full multimedia codec support
-- Vulkan and 32-bit libraries
-- Auto-detected and installed GPU drivers
-
-🖥️ System Features:
-- KDE Plasma desktop environment
-- Beautiful Vimix GRUB theme with snapshot support
-- Automatic Btrfs snapshots with Snapper
-- Clean, quiet boot process
-- Optimized for gaming performance
-
-📸 Snapshot Management:
-- Automatic hourly/daily/weekly snapshots
-- Boot directly into snapshots from GRUB menu
-- Use 'snapshot-manager' command:
-  • snapshot-manager create "Description" - Create manual snapshot
-  • snapshot-manager list - List all snapshots
-  • snapshot-manager cleanup - Clean old snapshots
-
-🎯 Useful Commands:
-- install-proton-ge - Update to latest Proton-GE
-- gamemode-simulate - Test if GameMode is working
-- mangohud glxgears - Test MangoHud overlay
-- snapshot-manager - Manage system snapshots
-- snapper-gui - GUI for snapshot management
-
-🚀 For Steam games, add to launch options:
-gamemoderun mangohud %command%
-
-📝 Check ~/Games/steam-launch-options.txt for more launch option examples.
-
-ProtonUp-Qt is available as a Flatpak for managing Proton versions.
-Use Discover to find and install additional software.
-
-Enjoy gaming on Fedora KDE!
+Useful:
+- install-proton-ge  (update Proton-GE)
+- snapshot-manager   (create/list/cleanup snapshots)
+- See ~/Games/steam-launch-options.txt for tips.
 EOF
 
-# Create initial system snapshot (only if snapper is configured)
-echo "Creating initial system snapshot..."
+# --- Initial snapshots (if configured) ---
 if snapper list-configs | grep -q root; then
-    snapper -c root create -d "Initial system installation" --userdata important=yes || echo "WARNING: Could not create root snapshot"
+  snapper -c root create -d "Initial system installation" --userdata important=yes || true
 fi
 if snapper list-configs | grep -q home; then
-    snapper -c home create -d "Initial system installation" --userdata important=yes || echo "WARNING: Could not create home snapshot"
+  snapper -c home create -d "Initial system installation" --userdata important=yes || true
 fi
 
-# Final GRUB update to include snapshots
-echo "Final GRUB configuration update..."
+# --- Final GRUB refresh (BLS) ---
 if [ -d /sys/firmware/efi ]; then
-    grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg || grub2-mkconfig -o /boot/grub2/grub.cfg
+  grub2-mkconfig -o /etc/grub2-efi.cfg || true
 else
-    grub2-mkconfig -o /boot/grub2/grub.cfg
+  grub2-mkconfig -o /etc/grub2.cfg || true
 fi
 
-echo "Post-installation configuration complete!"
-echo "System will reboot into a beautiful, gaming-ready KDE environment!"
-
+echo "Post-installation configuration complete."
 %end
 
 # Reboot after installation
