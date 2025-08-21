@@ -22,7 +22,7 @@ network --hostname=fedora-gaming
 url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch
 
 # Run the initial setup on first boot
-firstboot --enable
+firstboot --reconfig
 
 # Lock root account (user will set it during initial setup)
 rootpw --lock
