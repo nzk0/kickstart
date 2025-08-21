@@ -27,11 +27,11 @@ firstboot --enable
 rootpw --lock
 
 # System bootloader configuration - quiet boot with splash
-bootloader --location=mbr --boot-drive=sda --append="quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 systemd.show_status=false rd.systemd.show_status=false plymouth.enable=0 rd.plymouth=0 plymouth.ignore-serial-consoles"
+bootloader --location=mbr --append="quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 systemd.show_status=false rd.systemd.show_status=false"
 
 # IMPORTANT: Btrfs partitioning for Snapper snapshots
-zerombr
-clearpart --all --initlabel
+# WARNING: This will erase ALL data on the first disk
+clearpart --all --initlabel --drives=sda
 
 # Create partitions with Btrfs
 part /boot/efi --fstype="efi" --size=512 --ondisk=sda
@@ -56,13 +56,14 @@ repo --name=rpmfusion-nonfree --install --mirrorlist=https://mirrors.rpmfusion.o
 repo --name=rpmfusion-nonfree-updates --install --mirrorlist=https://mirrors.rpmfusion.org/mirrorlist?repo=nonfree-fedora-updates-released-$releasever&arch=$basearch
 
 %packages
-# Core System (minimal, without bloat)
+# Core System
 @core
 @base-x
 @fonts
+@standard
 @hardware-support
 @networkmanager-submodules
-# Removed @standard and @development-tools to avoid database packages
+# Removed @development-tools to avoid database packages
 
 # KDE Plasma Desktop
 @kde-desktop
@@ -119,9 +120,12 @@ initial-setup-gui
 # Plymouth (boot animation)
 plymouth
 plymouth-theme-breeze
+plymouth-theme-spinner
 plymouth-plugin-script
 plymouth-plugin-fade-throbber
+plymouth-scripts
 plymouth-system-theme
+kernel-core
 
 # GRUB theming and snapshot support
 grub2-tools-extra
@@ -259,9 +263,13 @@ xdg-desktop-portal-wlr
 kernel-tools
 kernel-devel
 kernel-headers
+kernel-modules-extra
 pciutils
 wget
 curl
+grub2-efi-x64
+grub2-efi-x64-modules
+shim-x64
 
 # Development Tools (for building Proton-GE and other tools)
 git
@@ -318,12 +326,51 @@ micro
 echo "Starting post-installation configuration..."
 
 # Ensure initial-setup will run on first boot
-systemctl enable initial-setup.service
-systemctl enable initial-setup-graphical.service
+echo "Configuring initial setup..."
+systemctl enable initial-setup.service || echo "WARNING: Could not enable initial-setup.service"
+systemctl enable initial-setup-graphical.service || echo "WARNING: Could not enable initial-setup-graphical.service"
 
 # Create the flag that ensures initial setup runs
 rm -f /etc/sysconfig/initial-setup
 touch /etc/reconfigSys
+
+# Verify initial-setup is installed
+if ! rpm -q initial-setup initial-setup-gui &>/dev/null; then
+    echo "ERROR: initial-setup packages not installed!"
+    dnf install -y initial-setup initial-setup-gui || echo "ERROR: Could not install initial-setup"
+fi
+
+# Create a fallback user if initial-setup fails
+# This user can be deleted after creating your real user
+cat > /usr/local/bin/create-emergency-user.sh << 'EOFU'
+#!/bin/bash
+if [ ! -d /home/gamer ] && [ $(ls /home | wc -l) -eq 0 ]; then
+    echo "No users found! Creating emergency user..."
+    useradd -m -G wheel -s /bin/bash gamer
+    echo "gamer:changeme" | chpasswd
+    echo "Emergency user 'gamer' created with password 'changeme'"
+    echo "Please create your real user and delete this one!"
+    touch /etc/emergency-user-created
+fi
+EOFU
+chmod +x /usr/local/bin/create-emergency-user.sh
+
+# Add to rc.local as fallback
+cat > /etc/rc.d/rc.local << 'EORC'
+#!/bin/bash
+# Emergency user creation if initial-setup didn't run
+if [ ! -f /var/lib/initial-setup/initial-setup-done ] && [ $(ls /home | wc -l) -eq 0 ]; then
+    /usr/local/bin/create-emergency-user.sh
+fi
+EORC
+chmod +x /etc/rc.d/rc.local
+
+# Double-check initial-setup will run
+if [ ! -f /etc/sysconfig/initial-setup ]; then
+    echo "run_initial_setup=YES" > /etc/sysconfig/initial-setup
+fi
+
+echo "Initial setup configuration completed"
 
 # Detect and install NVIDIA drivers if NVIDIA GPU is present
 echo "Checking for NVIDIA GPU..."
@@ -362,9 +409,19 @@ echo "Configuring Snapper..."
 # Wait for the filesystem to be ready
 sleep 5
 
-# Create snapper configuration for root
-snapper -c root create-config /
-snapper -c home create-config /home
+# Check if /.snapshots exists before creating config
+if [ -d /.snapshots ]; then
+    # Create snapper configuration for root
+    snapper -c root create-config / || echo "WARNING: Snapper config for root may already exist"
+else
+    echo "WARNING: /.snapshots directory not found, skipping root config"
+fi
+
+if [ -d /home ]; then
+    snapper -c home create-config /home || echo "WARNING: Snapper config for home may already exist"
+else
+    echo "WARNING: /home not found, skipping home config"
+fi
 
 # Configure snapper for root
 cat > /etc/snapper/configs/root << 'EOF'
@@ -438,6 +495,11 @@ systemctl enable grub-btrfs.path
 
 # Install and configure Vimix GRUB theme
 echo "Installing Vimix GRUB theme..."
+
+# First, ensure GRUB theme directory exists
+mkdir -p /boot/grub2/themes
+
+# Clone and install theme
 cd /tmp
 git clone https://github.com/vinceliuice/grub2-themes.git
 cd grub2-themes
@@ -445,31 +507,63 @@ cd grub2-themes
 # Install Vimix theme with custom options
 ./install.sh -b -t vimix -s 1080p
 
-# Configure GRUB for pretty boot
-cat >> /etc/default/grub << 'EOF'
+# Alternative method if the installer fails
+if [ ! -d /boot/grub2/themes/Vimix ]; then
+    echo "Theme installer failed, trying manual installation..."
+    mkdir -p /boot/grub2/themes/Vimix
+    cp -r themes/Vimix/* /boot/grub2/themes/Vimix/ 2>/dev/null || true
+fi
 
-# Pretty boot configuration
+# Configure GRUB for pretty boot
+cat > /etc/default/grub << 'EOF'
+# Basic settings
 GRUB_TIMEOUT=5
 GRUB_TIMEOUT_STYLE=menu
 GRUB_DISTRIBUTOR="Fedora Gaming"
+GRUB_DEFAULT=saved
+GRUB_SAVEDEFAULT=true
 GRUB_DISABLE_SUBMENU=false
 GRUB_TERMINAL_OUTPUT="gfxterm"
-GRUB_GFXMODE=1920x1080x32
+GRUB_GFXMODE=1920x1080,1366x768,1024x768,auto
 GRUB_GFXPAYLOAD_LINUX=keep
 GRUB_DISABLE_OS_PROBER=false
+GRUB_ENABLE_BLSCFG=false
 
 # Remove verbose boot messages
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 systemd.show_status=false rd.systemd.show_status=false plymouth.enable=0 rd.plymouth=0"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 systemd.show_status=false rd.systemd.show_status=false"
+GRUB_CMDLINE_LINUX="rhgb quiet"
 
 # Theme
 GRUB_THEME="/boot/grub2/themes/Vimix/theme.txt"
+
+# Background (if theme fails)
+GRUB_BACKGROUND="/boot/grub2/themes/Vimix/background.png"
 EOF
 
+# Ensure theme files have correct permissions
+chmod -R 755 /boot/grub2/themes
+
+# Rebuild initramfs to include Plymouth
+echo "Configuring Plymouth..."
+plymouth-set-default-theme breeze
+dracut --regenerate-all --force
+
 # Update GRUB configuration
-grub2-mkconfig -o /boot/grub2/grub.cfg
+echo "Updating GRUB configuration..."
+if [ -d /sys/firmware/efi ]; then
+    grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg
+else
+    grub2-mkconfig -o /boot/grub2/grub.cfg
+fi
+
+# Verify theme installation
+if [ -f /boot/grub2/themes/Vimix/theme.txt ]; then
+    echo "Vimix theme installed successfully"
+else
+    echo "WARNING: Vimix theme installation may have failed"
+fi
 
 # Configure Plymouth for KDE
-plymouth-set-default-theme breeze -R
 
 # Enable Flathub
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
@@ -768,13 +862,22 @@ Use Discover to find and install additional software.
 Enjoy gaming on Fedora KDE!
 EOF
 
-# Create initial system snapshot
+# Create initial system snapshot (only if snapper is configured)
 echo "Creating initial system snapshot..."
-snapper -c root create -d "Initial system installation" --userdata important=yes
-snapper -c home create -d "Initial system installation" --userdata important=yes
+if snapper list-configs | grep -q root; then
+    snapper -c root create -d "Initial system installation" --userdata important=yes || echo "WARNING: Could not create root snapshot"
+fi
+if snapper list-configs | grep -q home; then
+    snapper -c home create -d "Initial system installation" --userdata important=yes || echo "WARNING: Could not create home snapshot"
+fi
 
 # Final GRUB update to include snapshots
-grub2-mkconfig -o /boot/grub2/grub.cfg
+echo "Final GRUB configuration update..."
+if [ -d /sys/firmware/efi ]; then
+    grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg || grub2-mkconfig -o /boot/grub2/grub.cfg
+else
+    grub2-mkconfig -o /boot/grub2/grub.cfg
+fi
 
 echo "Post-installation configuration complete!"
 echo "System will reboot into a beautiful, gaming-ready KDE environment!"
